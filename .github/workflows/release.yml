@@ -1,20 +1,30 @@
 name: Build desktop releases
 
 # The private game repository pushes build-request.json here (with a deploy key that can do nothing else). This checks
-# that exact commit out with a read-only key, tests it, exports Windows, macOS and Linux, and publishes them as the
-# latest release. The game's source is never committed here; only the downloads are public.
+# that exact commit out with a read-only key, tests it, exports Windows, macOS and Linux, signs and notarizes the Mac
+# app on a Mac runner, and publishes them as the latest release. The game's source is never committed here; only the
+# downloads are public.
+#
+# Run it by hand (Actions > Build desktop releases > Run workflow) for a test build: it does everything but publish,
+# and leaves the downloads on the run's page for a week. Tick "publish" to release it as well.
 
 on:
   push:
     branches: [main]
     paths: [build-request.json]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish it as the latest release (leave off for a test build)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-latest-desktop-release
+  # (a test build never cancels a real one, or another test)
+  group: ${{ (github.event_name == 'push' || inputs.publish) && 'publish-latest-desktop-release' || format('test-build-{0}', github.run_id) }}
   cancel-in-progress: true
 
 env:
@@ -24,6 +34,9 @@ jobs:
   export:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.request.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Check out build instructions
         uses: actions/checkout@v4
@@ -128,13 +141,166 @@ jobs:
           cat runtime-smoke.log
           if grep -Eq 'SCRIPT ERROR|Parse Error' runtime-smoke.log; then exit 1; fi
 
-      - name: Publish complete downloads as the latest release
+      - name: Read the game's version
+        id: version
         working-directory: source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.request.outputs.sha }}
         run: |
           version=$(python3 -c 'import pathlib,re; text=pathlib.Path("project.godot").read_text(); match=re.search(r"^config/version=\"([^\"]+)\"",text,re.M); print(match.group(1) if match else "development")')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the downloads for the next jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: downloads
+          path: source/dist/*.zip
+          retention-days: 7
+          if-no-files-found: error
+
+  mac:
+    # Signs the Mac app with the Developer ID, has Apple notarize it and staples the ticket, so it opens like any app
+    # from the internet. With no signing secrets set it leaves the Mac download as it is (unsigned) and says so.
+    needs: export
+    runs-on: macos-latest
+    timeout-minutes: 45
+    outputs:
+      signed: ${{ steps.sign.outputs.signed }}
+    steps:
+      - name: Get the Mac download
+        uses: actions/download-artifact@v4
+        with:
+          name: downloads
+          path: dist
+
+      - name: Sign, notarize and staple the Mac app
+        id: sign
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MACOS_CERT_P12$NOTARY_KEY_P8" ]; then
+            echo "::warning::No Mac signing secrets are set, so the Mac download is unsigned."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            [ -n "${!name}" ] || { echo "::error::The secret $name is missing (the others are set)."; exit 1; }
+          done
+
+          # a keychain of its own for this run, holding only the Developer ID (and Apple's certificates above it)
+          KC="$RUNNER_TEMP/signing.keychain-db"
+          KC_PW="$(openssl rand -hex 24)"
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign > /dev/null
+          rm -f "$RUNNER_TEMP/cert.p12"
+          for ca in DeveloperIDCA DeveloperIDG2CA; do
+            curl -fsSL -o "$RUNNER_TEMP/$ca.cer" "https://www.apple.com/certificateauthority/$ca.cer"
+            security import "$RUNNER_TEMP/$ca.cer" -k "$KC" > /dev/null 2>&1 || true
+          done
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          IDENTITY="$(security find-identity -v -p codesigning "$KC" | sed -n 's/^ *[0-9]*) \([0-9A-F]\{40\}\) "Developer ID Application:.*/\1/p' | head -1)"
+          [ -n "$IDENTITY" ] || { echo "::error::MACOS_CERT_P12 has no Developer ID Application certificate with its key."; exit 1; }
+
+          mkdir work
+          ditto -x -k dist/PartyGames-macOS.zip work
+          APP="work/Party Games.app"
+          [ -d "$APP" ] || { echo "::error::No Party Games.app in the Mac download."; exit 1; }
+          xattr -cr "$APP"
+          # the hardened runtime and a secure timestamp: both needed for notarizing
+          codesign --force --options runtime --timestamp --keychain "$KC" --sign "$IDENTITY" "$APP"
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E '^(Authority|TeamIdentifier|Timestamp)='
+
+          KEY="$RUNNER_TEMP/notary_key.p8"
+          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$KEY"
+          ditto -c -k --norsrc --noextattr --keepParent "$APP" "$RUNNER_TEMP/submit.zip"
+          echo "Sending it to Apple to notarize (usually a few minutes)..."
+          xcrun notarytool submit "$RUNNER_TEMP/submit.zip" --key "$KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notary.json" || true
+          cat "$RUNNER_TEMP/notary.json"; echo
+          read -r ID STATUS < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("id","-"), d.get("status","-"))' "$RUNNER_TEMP/notary.json" 2>/dev/null || echo "- -")
+          if [ "$STATUS" != "Accepted" ]; then
+            [ "$ID" != "-" ] && xcrun notarytool log "$ID" --key "$KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" || true
+            echo "::error::Apple didn't notarize it ($STATUS)."
+            exit 1
+          fi
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+
+          # (no extended attributes in the zip: unzipped by anything but Finder they'd land in the app as ._ files and
+          # break its signature)
+          mkdir signed
+          ditto -c -k --norsrc --noextattr --noqtn --keepParent "$APP" signed/PartyGames-macOS.zip
+          if unzip -l signed/PartyGames-macOS.zip | grep -q '/\._'; then echo "::error::The zip has ._ files in it."; exit 1; fi
+          unzip -tq signed/PartyGames-macOS.zip
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "Mac app: signed with the Developer ID, notarized and stapled." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check that the signed app starts
+        if: steps.sign.outputs.signed == 'true'
+        run: |
+          set -o pipefail
+          "work/Party Games.app/Contents/MacOS/Party Games" --headless --quit-after 300 -- --offline > mac-smoke.log 2>&1 || { cat mac-smoke.log; exit 1; }
+          cat mac-smoke.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' mac-smoke.log; then exit 1; fi
+
+      - name: Keep the signed Mac download
+        if: steps.sign.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-signed
+          path: signed/PartyGames-macOS.zip
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Clean up the keychain and key
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary_key.p8" "$RUNNER_TEMP/cert.p12"
+
+  publish:
+    needs: [export, mac]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Get the downloads
+        uses: actions/download-artifact@v4
+        with:
+          name: downloads
+          path: dist
+
+      - name: Get the signed Mac download
+        if: needs.mac.outputs.signed == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-signed
+          path: signed
+
+      - name: Publish complete downloads as the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.export.outputs.sha }}
+          VERSION: ${{ needs.export.outputs.version }}
+          SIGNED: ${{ needs.mac.outputs.signed }}
+        run: |
+          set -euo pipefail
+          if [ "$SIGNED" = "true" ]; then
+            mv -f signed/PartyGames-macOS.zip dist/PartyGames-macOS.zip
+            mac_line="macOS: run Party Games.app. It's signed and notarized, so it opens like any other app."
+          else
+            mac_line="macOS: run Party Games.app. If macOS says it could not verify the app, open System Settings > Privacy & Security and click Open Anyway."
+          fi
+          for archive in dist/*.zip; do unzip -tq "$archive"; done
           tag="build-${SOURCE_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           cat > release-notes.txt <<NOTES
           Party Games for Windows, macOS and Linux. No Godot needed.
@@ -142,14 +308,14 @@ jobs:
           Easiest: get the Party Games Launcher (see the README); it always installs the newest version.
           Or download the ZIP for your computer, extract it, and run the game.
           Windows: run Party Games.exe. If Windows says "Windows protected your PC", click More info, then Run anyway.
-          macOS: run Party Games.app. If macOS says it could not verify the app, open System Settings > Privacy & Security and click Open Anyway.
+          ${mac_line}
           Linux: run party_games.x86_64.
           Play with friends on the same version.
 
-          Version: ${version}
+          Version: ${VERSION}
           Game commit: ${SOURCE_SHA}
           Built: $(date -u '+%Y-%m-%d %H:%M UTC')
           NOTES
-          gh release create "$tag" dist/*.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Version ${version}" --notes-file release-notes.txt --draft
+          gh release create "$tag" dist/*.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Version ${VERSION}" --notes-file release-notes.txt --draft
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           echo "Downloads: https://github.com/$GITHUB_REPOSITORY/releases/latest" >> "$GITHUB_STEP_SUMMARY"
