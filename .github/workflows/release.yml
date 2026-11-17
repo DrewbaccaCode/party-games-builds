@@ -1,0 +1,155 @@
+name: Build desktop releases
+
+# The private game repository pushes build-request.json here (with a deploy key that can do nothing else). This checks
+# that exact commit out with a read-only key, tests it, exports Windows, macOS and Linux, and publishes them as the
+# latest release. The game's source is never committed here; only the downloads are public.
+
+on:
+  push:
+    branches: [main]
+    paths: [build-request.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-latest-desktop-release
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out build instructions
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Read the requested game version
+        id: request
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          request = json.loads(pathlib.Path("build-request.json").read_text())
+          sha = request["source_sha"]
+          if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("Invalid source commit in build request")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"sha={sha}\n")
+          PY
+
+      - name: Check out the private game for this build only
+        uses: actions/checkout@v4
+        with:
+          repository: DrewbaccaCode/party-games
+          ref: ${{ steps.request.outputs.sha }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          path: source
+
+      - name: Remember Godot and its templates between builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/godot-bin
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-desktop-templates
+
+      - name: Get Godot and its export templates
+        run: |
+          if [ -x "$RUNNER_TEMP/godot-bin/godot" ] && [ -f "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/macos.zip" ]; then
+            cp "$RUNNER_TEMP/godot-bin/godot" "$RUNNER_TEMP/godot"
+            exit 0
+          fi
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip && rm godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$RUNNER_TEMP/godot"
+          curl -fsSL -o "$RUNNER_TEMP/templates.tpz" "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          unzip -q -j "$RUNNER_TEMP/templates.tpz" templates/version.txt templates/windows_release_x86_64.exe \
+            templates/windows_debug_x86_64.exe templates/linux_release.x86_64 templates/linux_debug.x86_64 \
+            templates/macos.zip -d "$dest"
+          rm "$RUNNER_TEMP/templates.tpz"
+          mkdir -p "$RUNNER_TEMP/godot-bin" && cp "$RUNNER_TEMP/godot" "$RUNNER_TEMP/godot-bin/godot"
+
+      - name: Bake in the configured relay address
+        working-directory: source
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, re
+          request = json.loads(pathlib.Path("../build-request.json").read_text())
+          relay = request.get("relay_address", "")
+          if not isinstance(relay, str):
+              raise SystemExit("Invalid relay address in build request")
+          if relay:
+              project = pathlib.Path("project.godot")
+              content, count = re.subn(r"^relay_address=.*$", lambda _: "relay_address=" + json.dumps(relay), project.read_text(), flags=re.MULTILINE)
+              if count != 1:
+                  raise SystemExit("Could not find the project's relay setting")
+              project.write_text(content)
+          PY
+
+      - name: Import the project
+        working-directory: source
+        run: timeout 600 "$RUNNER_TEMP/godot" --headless --editor --path . --import
+
+      - name: Check every script, and a match between three bots over a relay
+        working-directory: source
+        run: GODOT="$RUNNER_TEMP/godot" bash tests/ci_smoke.sh
+
+      - name: Export Windows, macOS and Linux
+        working-directory: source
+        run: |
+          G="$RUNNER_TEMP/godot"
+          mkdir -p build/windows build/mac build/linux dist
+          "$G" --headless --path . --export-release "Windows Desktop" "build/windows/Party Games.exe"
+          "$G" --headless --path . --export-release "macOS" "build/mac/Party Games.zip"
+          "$G" --headless --path . --export-release "Linux" "build/linux/party_games.x86_64"
+          test -s "build/windows/Party Games.exe"
+          test -s "build/mac/Party Games.zip"
+          test -s "build/linux/party_games.x86_64"
+          (cd build/windows && zip -q -r ../../dist/PartyGames-Windows.zip .)
+          cp "build/mac/Party Games.zip" dist/PartyGames-macOS.zip
+          chmod +x build/linux/party_games.x86_64
+          (cd build/linux && zip -q -r ../../dist/PartyGames-Linux.zip .)
+          for archive in dist/*.zip; do unzip -tq "$archive"; done
+
+      - name: Check that the exported game starts without the editor
+        working-directory: source
+        run: |
+          timeout 60 build/linux/party_games.x86_64 --headless --quit-after 300 -- --offline > runtime-smoke.log 2>&1 || { cat runtime-smoke.log; exit 1; }
+          cat runtime-smoke.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' runtime-smoke.log; then exit 1; fi
+
+      - name: Publish complete downloads as the latest release
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.request.outputs.sha }}
+        run: |
+          version=$(python3 -c 'import pathlib,re; text=pathlib.Path("project.godot").read_text(); match=re.search(r"^config/version=\"([^\"]+)\"",text,re.M); print(match.group(1) if match else "development")')
+          tag="build-${SOURCE_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cat > release-notes.txt <<NOTES
+          Party Games for Windows, macOS and Linux. No Godot needed.
+
+          Easiest: get the Party Games Launcher (see the README); it always installs the newest version.
+          Or download the ZIP for your computer, extract it, and run the game.
+          Windows: run Party Games.exe. If Windows says "Windows protected your PC", click More info, then Run anyway.
+          macOS: run Party Games.app. If macOS says it could not verify the app, open System Settings > Privacy & Security and click Open Anyway.
+          Linux: run party_games.x86_64.
+          Play with friends on the same version.
+
+          Version: ${version}
+          Game commit: ${SOURCE_SHA}
+          Built: $(date -u '+%Y-%m-%d %H:%M UTC')
+          NOTES
+          gh release create "$tag" dist/*.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Version ${version}" --notes-file release-notes.txt --draft
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Downloads: https://github.com/$GITHUB_REPOSITORY/releases/latest" >> "$GITHUB_STEP_SUMMARY"
