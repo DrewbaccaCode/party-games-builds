@@ -2,7 +2,8 @@ name: Build desktop releases
 
 # The private game repository pushes build-request.json here (with a deploy key that can do nothing else). This checks
 # that exact commit out with a read-only key, tests it, exports Windows, macOS and Linux, signs and notarizes the Mac
-# app on a Mac runner, and publishes them as the latest release. The game's source is never committed here; only the
+# app on a Mac runner, has each download play a match on its own system (tests/export_smoke.sh: a relay and three bots),
+# and publishes them as the latest release. The game's source is never committed here; only the
 # downloads are public.
 #
 # Run it by hand (Actions > Build desktop releases > Run workflow) for a test build: it does everything but publish,
@@ -141,6 +142,9 @@ jobs:
           cat runtime-smoke.log
           if grep -Eq 'SCRIPT ERROR|Parse Error' runtime-smoke.log; then exit 1; fi
 
+      - name: Play a match with the exported Linux game (a relay and three bots)
+        run: bash tests/export_smoke.sh source/build/linux/party_games.x86_64
+
       - name: Read the game's version
         id: version
         working-directory: source
@@ -165,6 +169,11 @@ jobs:
     outputs:
       signed: ${{ steps.sign.outputs.signed }}
     steps:
+      - name: Check out build instructions
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Get the Mac download
         uses: actions/download-artifact@v4
         with:
@@ -244,13 +253,10 @@ jobs:
           echo "signed=true" >> "$GITHUB_OUTPUT"
           echo "Mac app: signed with the Developer ID, notarized and stapled." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Check that the signed app starts
-        if: steps.sign.outputs.signed == 'true'
+      - name: Play a match with the Mac game (a relay and three bots)
         run: |
-          set -o pipefail
-          "work/Party Games.app/Contents/MacOS/Party Games" --headless --quit-after 300 -- --offline > mac-smoke.log 2>&1 || { cat mac-smoke.log; exit 1; }
-          cat mac-smoke.log
-          if grep -Eq 'SCRIPT ERROR|Parse Error' mac-smoke.log; then exit 1; fi
+          [ -d "work/Party Games.app" ] || { mkdir -p work && ditto -x -k dist/PartyGames-macOS.zip work; }
+          bash tests/export_smoke.sh "work/Party Games.app/Contents/MacOS/Party Games"
 
       - name: Keep the signed Mac download
         if: steps.sign.outputs.signed == 'true'
@@ -267,8 +273,33 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/notary_key.p8" "$RUNNER_TEMP/cert.p12"
 
+  windows:
+    # The Windows download, unzipped on Windows as a friend would, plays a match: a relay and three bots.
+    needs: export
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out build instructions
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Get the Windows download
+        uses: actions/download-artifact@v4
+        with:
+          name: downloads
+          path: dist
+
+      - name: Unzip it
+        shell: pwsh
+        run: Expand-Archive -Path dist/PartyGames-Windows.zip -DestinationPath win
+
+      - name: Play a match with the Windows game
+        shell: bash
+        run: bash tests/export_smoke.sh "win/Party Games.exe"
+
   publish:
-    needs: [export, mac]
+    needs: [export, mac, windows]
     if: github.event_name == 'push' || inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
