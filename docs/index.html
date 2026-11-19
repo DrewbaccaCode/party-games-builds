@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party Games</title>
+<meta name="description" content="Top-down party games for up to eight friends, online by room code. For Windows, macOS and Linux.">
+<meta property="og:title" content="Party Games">
+<meta property="og:description" content="Top-down party games for up to eight friends, online by room code.">
+<meta property="og:image" content="https://drewbaccacode.github.io/party-games-builds/img/lobby.jpg">
+<meta property="og:url" content="https://drewbaccacode.github.io/party-games-builds/">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Silkscreen&display=swap" rel="stylesheet">
+<style>
+:root {
+  --night: #17120f;
+  --night-2: #211913;
+  --timber: #8a5530;
+  --timber-2: #6e4123;
+  --timber-3: #4b2b16;
+  --iron: #2a2b30;
+  --iron-2: #3c3e45;
+  --brass: #d9a441;
+  --brass-2: #f2c96b;
+  --brass-3: #9c7024;
+  --paper: #f1e3c0;
+  --paper-2: #e3cf9f;
+  --ink: #2b2017;
+  --ink-2: #5a4632;
+  --text: #f1e3c0;
+  --text-2: #c9b48d;
+  --tnt: #e8473a;
+  --quiver: #4f9de8;
+  --zombies: #58b45a;
+  --course: #b06be0;
+  --party: #f2c14e;
+  --display: "Jersey 10", "Silkscreen", ui-monospace, monospace;
+  --label: "Silkscreen", ui-monospace, monospace;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--night); }
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--text);
+  font: 17px/1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--brass-2); }
+a:hover { color: #fff1c9; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+/* ---------- the materials ---------- */
+.timber {
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 26px, rgba(0,0,0,.35) 26px 28px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 3px, rgba(0,0,0,.04) 3px 9px),
+    linear-gradient(180deg, var(--timber), var(--timber-2));
+  border: 4px solid var(--iron);
+  box-shadow: inset 0 0 0 2px var(--timber-3), 0 10px 0 rgba(0,0,0,.35);
+  position: relative;
+}
+.rivets::before, .rivets::after {
+  content: "";
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--brass-2), var(--brass-3));
+  top: 8px; left: 8px;
+  box-shadow: 0 0 0 2px var(--iron);
+}
+.rivets::after { left: auto; right: 8px; }
+.paper {
+  background: linear-gradient(180deg, var(--paper), var(--paper-2));
+  color: var(--ink);
+  border: 3px solid var(--iron);
+  box-shadow: 0 6px 0 rgba(0,0,0,.35);
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative;
+  min-height: 640px;
+  display: flex;
+  align-items: center;
+  padding: 72px 0 96px;
+  background: var(--night) url("img/lobby.jpg") center 35% / cover no-repeat;
+  overflow: hidden;
+}
+.hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(23,18,15,.25), rgba(23,18,15,.85) 70%),
+    linear-gradient(180deg, rgba(23,18,15,.15), rgba(23,18,15,.2) 60%, var(--night));
+}
+.hero .wrap { position: relative; text-align: center; width: 100%; }
+.sign {
+  display: inline-block;
+  padding: 18px 40px 10px;
+  transform: rotate(-1.2deg);
+}
+.sign h1 {
+  margin: 0;
+  font: 400 clamp(64px, 13vw, 132px)/0.9 var(--display);
+  letter-spacing: 2px;
+  color: var(--paper);
+  text-shadow: 0 4px 0 var(--timber-3), 0 8px 0 rgba(0,0,0,.4);
+}
+.sign .chains {
+  position: absolute; top: -60px; left: 0; right: 0; height: 60px; pointer-events: none;
+}
+.sign .chains::before, .sign .chains::after {
+  content: ""; position: absolute; bottom: 0; width: 6px; height: 60px;
+  background: repeating-linear-gradient(180deg, var(--iron-2) 0 8px, var(--iron) 8px 12px);
+  left: 18%;
+}
+.sign .chains::after { left: auto; right: 18%; }
+.pennants {
+  display: flex; justify-content: center; gap: 8px; margin: 22px 0 0;
+}
+.pennants span {
+  width: 26px; height: 30px;
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.2);
+}
+.tagline {
+  margin: 22px auto 30px;
+  max-width: 600px;
+  font-size: clamp(18px, 2.4vw, 22px);
+  color: var(--paper);
+  text-shadow: 0 2px 8px rgba(0,0,0,.8);
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 16px 30px 14px;
+  font: 400 26px/1 var(--display);
+  letter-spacing: 1px;
+  color: var(--ink);
+  text-decoration: none;
+  background: linear-gradient(180deg, var(--brass-2), var(--brass));
+  border: 4px solid var(--iron);
+  box-shadow: inset 0 -5px 0 var(--brass-3), 0 6px 0 rgba(0,0,0,.45);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+.btn:hover { color: var(--ink); transform: translateY(-2px); box-shadow: inset 0 -5px 0 var(--brass-3), 0 8px 0 rgba(0,0,0,.45); }
+.btn:active { transform: translateY(3px); box-shadow: inset 0 -2px 0 var(--brass-3), 0 2px 0 rgba(0,0,0,.45); }
+.btn svg { width: 24px; height: 24px; flex: none; }
+.meta {
+  margin: 14px 0 0;
+  font: 400 13px/1.6 var(--label);
+  color: var(--text-2);
+  text-shadow: 0 1px 4px rgba(0,0,0,.9);
+}
+.others { margin: 18px 0 0; color: var(--paper); text-shadow: 0 1px 6px rgba(0,0,0,.9); }
+.others a { font-weight: 600; }
+.phone-note {
+  display: none;
+  margin: 0 auto 18px; max-width: 460px; padding: 10px 14px;
+  font-size: 15px;
+}
+
+/* ---------- sections ---------- */
+section { padding: 72px 0 8px; }
+h2 {
+  margin: 0 0 28px;
+  font: 400 clamp(40px, 6vw, 56px)/1 var(--display);
+  color: var(--paper);
+  letter-spacing: 1px;
+}
+h2 small { display: block; margin-top: 8px; font: 400 14px/1.4 var(--label); color: var(--text-2); letter-spacing: 0; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.step { padding: 22px 22px 18px; position: relative; }
+.step .n {
+  position: absolute; top: -18px; left: 18px;
+  width: 40px; height: 40px; display: grid; place-items: center;
+  font: 400 26px/1 var(--display); color: var(--ink);
+  background: linear-gradient(180deg, var(--brass-2), var(--brass));
+  border: 3px solid var(--iron); border-radius: 50%;
+}
+.step h3 { margin: 10px 0 6px; font: 400 28px/1.05 var(--display); color: var(--ink); }
+.step p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.key {
+  display: inline-block; min-width: 1.7em; padding: 0 6px; margin: 0 1px;
+  font: 400 13px/1.7 var(--label); text-align: center; color: var(--paper);
+  background: var(--iron); border-bottom: 3px solid #111; border-radius: 4px;
+}
+
+.games { display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px; }
+.game { overflow: hidden; display: flex; flex-direction: column; }
+.game .shot { position: relative; aspect-ratio: 16 / 9; background: var(--iron); border-bottom: 3px solid var(--iron); }
+.game .shot img { width: 100%; height: 100%; object-fit: cover; }
+.game .flag {
+  position: absolute; top: 0; left: 18px; width: 34px; height: 46px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,.18);
+}
+.game .body { padding: 16px 20px 20px; flex: 1; }
+.game h3 { margin: 0 0 6px; font: 400 32px/1 var(--display); color: var(--ink); letter-spacing: .5px; }
+.game p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.game.wide { grid-column: 1 / -1; }
+.game.wide .shot { aspect-ratio: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.game.wide .shot figure { margin: 0; position: relative; aspect-ratio: 16 / 10; }
+.game.wide .shot figure img { width: 100%; height: 100%; object-fit: cover; }
+.game.wide figcaption {
+  position: absolute; left: 8px; bottom: 8px;
+  padding: 3px 8px 2px; font: 400 12px/1.4 var(--label);
+  color: var(--paper); background: rgba(23,18,15,.82); border: 2px solid var(--iron);
+}
+.subgames { margin: 12px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 22px; }
+.subgames li { color: var(--ink-2); font-size: 15px; }
+.subgames b { color: var(--ink); }
+
+.systems { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.sys { padding: 20px 22px 20px; position: relative; }
+.sys.mine { outline: 4px solid var(--brass); outline-offset: 3px; }
+.sys.mine::after {
+  content: "YOURS"; position: absolute; top: -14px; right: 14px;
+  padding: 2px 8px 1px; font: 400 12px/1.4 var(--label); color: var(--ink);
+  background: var(--brass-2); border: 2px solid var(--iron);
+}
+.sys h3 { margin: 0 0 8px; font: 400 30px/1 var(--display); color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.sys h3 svg { width: 24px; height: 24px; }
+.sys ol { margin: 0 0 12px; padding-left: 20px; color: var(--ink-2); font-size: 15.5px; }
+.sys ol li { margin: 4px 0; }
+.sys a.dl { font: 400 14px/1.4 var(--label); color: #7a4a10; }
+.sys a.dl:hover { color: var(--ink); }
+
+.launcher { margin-top: 26px; padding: 22px 26px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.launcher h3 { margin: 0; font: 400 32px/1 var(--display); color: var(--paper); text-shadow: 0 3px 0 var(--timber-3); }
+.launcher p { margin: 6px 0 0; color: var(--paper); max-width: 560px; }
+.launcher .links { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.launcher .links a {
+  padding: 8px 12px 6px; font: 400 13px/1.4 var(--label); color: var(--ink); text-decoration: none;
+  background: var(--paper); border: 3px solid var(--iron);
+}
+.launcher .links a:hover { background: #fff6dc; }
+
+table.controls { width: 100%; border-collapse: collapse; font-size: 16px; }
+table.controls th, table.controls td { padding: 10px 14px; text-align: left; border-bottom: 2px solid rgba(43,32,23,.18); }
+table.controls thead th { font: 400 14px/1.4 var(--label); color: var(--ink-2); }
+table.controls td:first-child { color: var(--ink); font-weight: 600; }
+table.controls td { color: var(--ink-2); }
+.controls-box { padding: 10px 14px 16px; }
+.controls-box p { margin: 12px 14px 0; color: var(--ink-2); font-size: 15px; }
+
+footer { padding: 72px 0 48px; text-align: center; color: var(--text-2); font-size: 15px; }
+footer .pennants { margin: 0 0 18px; }
+
+@media (max-width: 860px) {
+  .steps, .systems { grid-template-columns: 1fr; gap: 30px; }
+  .games { grid-template-columns: 1fr; }
+  .game.wide .shot { grid-template-columns: repeat(2, 1fr); }
+  .subgames { grid-template-columns: 1fr; }
+  .launcher .links { margin-left: 0; }
+}
+@media (max-width: 520px) {
+  .hero { min-height: 560px; padding: 64px 0 72px; }
+  .sign { padding: 14px 18px 6px; }
+  .btn { font-size: 22px; padding: 14px 20px 12px; }
+  table.controls th, table.controls td { padding: 8px 6px; font-size: 14.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="sign timber rivets">
+      <span class="chains" aria-hidden="true"></span>
+      <h1>PARTY GAMES</h1>
+    </div>
+    <div class="pennants" aria-hidden="true">
+      <span style="background:var(--tnt)"></span><span style="background:var(--quiver)"></span><span style="background:var(--zombies)"></span><span style="background:var(--course)"></span><span style="background:var(--party)"></span>
+    </div>
+    <p class="tagline">Top-down party games for you and up to seven friends, wherever they are. One of you makes a room and the rest join with its code.</p>
+    <p class="phone-note paper" id="phone-note">Party Games runs on computers: Windows, Mac and Linux. Send yourself this page and download it there.</p>
+    <a class="btn" id="dl-main" href="https://github.com/DrewbaccaCode/party-games-builds/releases/latest">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 3h2v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6zM4 19h16v2H4z"/></svg>
+      <span id="dl-main-text">Download</span>
+    </a>
+    <p class="meta" id="dl-meta">For Windows, macOS and Linux</p>
+    <p class="others" id="dl-others">Or get it for <a href="#get">another system</a>, or use the <a href="#launcher">launcher</a>, which keeps it up to date.</p>
+  </div>
+</header>
+
+<main>
+<section id="start">
+  <div class="wrap">
+    <h2>Getting playing<small>Everyone needs the same version: the newest is always here.</small></h2>
+    <div class="steps">
+      <div class="step paper"><span class="n">1</span>
+        <h3>Download it</h3>
+        <p>Unzip it and open it. No account, no installer. <a href="#get" style="color:#7a4a10">What to click on your system</a>.</p>
+      </div>
+      <div class="step paper"><span class="n">2</span>
+        <h3>Make a room</h3>
+        <p>One of you opens the game: your room's code is at the top of the lobby. Everyone else presses <b>Join Game</b> and types it in.</p>
+      </div>
+      <div class="step paper"><span class="n">3</span>
+        <h3>Spin the wheel</h3>
+        <p>Pull the lever by the wheel and let it pick, or press <span class="key">V</span> and vote. Then try not to fall in the lava.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="games">
+  <div class="wrap">
+    <h2>What's on the wheel<small>Five slices. Each match ends on the podium.</small></h2>
+    <div class="games">
+      <article class="game wide paper">
+        <div class="shot">
+          <span class="flag" style="background:var(--tnt);z-index:1" aria-hidden="true"></span>
+          <figure><img src="img/tntrun.jpg" alt="TNT Run: players running across a floor of red blocks that drop away behind them, over lava" loading="lazy"><figcaption>TNT RUN</figcaption></figure>
+          <figure><img src="img/spleef.jpg" alt="Bow Spleef: players on a floor high above a gorge, shooting holes in it" loading="lazy"><figcaption>BOW SPLEEF</figcaption></figure>
+          <figure><img src="img/tnttag.jpg" alt="TNT Tag: one player carries a lit stick of dynamite toward the others" loading="lazy"><figcaption>TNT TAG</figcaption></figure>
+          <figure><img src="img/wizards.jpg" alt="TNT Wizards: two houses of wizards fight over a tower's circle" loading="lazy"><figcaption>TNT WIZARDS</figcaption></figure>
+        </div>
+        <div class="body">
+          <h3>TNT Games</h3>
+          <p>Four games back to back on one scoreboard, or pick just one on the vote card.</p>
+          <ul class="subgames">
+            <li><b>TNT Run:</b> every block you step on falls a moment later. Last one up wins.</li>
+            <li><b>Bow Spleef:</b> your arrows burn the floor out. Shoot it out from under people.</li>
+            <li><b>TNT Tag:</b> hand the TNT on before its fuse runs out.</li>
+            <li><b>TNT Wizards:</b> two houses, three towers, four schools of magic.</li>
+          </ul>
+        </div>
+      </article>
+      <article class="game paper">
+        <div class="shot"><span class="flag" style="background:var(--quiver)" aria-hidden="true"></span><img src="img/quiver.jpg" alt="The Quiver: a first-person view down a bow at an arena" loading="lazy"></div>
+        <div class="body"><h3>The Quiver</h3><p>First person, one arrow a life, and it kills outright. Fetch it back, or punch your way out. Three arenas.</p></div>
+      </article>
+      <article class="game paper">
+        <div class="shot"><span class="flag" style="background:var(--course)" aria-hidden="true"></span><img src="img/course.jpg" alt="Obstacles: a crowd of players racing through a game-show course" loading="lazy"></div>
+        <div class="body"><h3>Obstacles</h3><p>A game show. Race the course: only the first few through each round go on, and the final decides it.</p></div>
+      </article>
+      <article class="game paper">
+        <div class="shot"><span class="flag" style="background:var(--party)" aria-hidden="true"></span><img src="img/party.jpg" alt="Party Games: a quick minigame in a small arena" loading="lazy"></div>
+        <div class="body"><h3>Party Games</h3><p>Five quick minigames out of twelve, with the rules on a card before each. Points for where you come.</p></div>
+      </article>
+      <article class="game paper">
+        <div class="shot"><span class="flag" style="background:var(--zombies)" aria-hidden="true"></span><img src="img/zombies.jpg" alt="Zombies: players back to back against a wave of monsters" loading="lazy"></div>
+        <div class="body"><h3>Zombies</h3><p>Everyone together against waves of monsters. Spend your gold on doors, weapons and upgrades, and revive each other.</p></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="get">
+  <div class="wrap">
+    <h2>Download<small>The newest version, for each system. These links never go stale.</small></h2>
+    <div class="systems">
+      <div class="sys paper" data-os="windows">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10 4.5v7H3zM11 4.4 21 3v8.5H11zM3 12.5h7v7l-7-1zM11 12.5h10V21l-10-1.4z"/></svg>Windows</h3>
+        <ol>
+          <li>Unzip <b>PartyGames-Windows.zip</b>.</li>
+          <li>Run <b>Party Games.exe</b>.</li>
+          <li>If Windows says "Windows protected your PC", click <b>More info</b>, then <b>Run anyway</b>. Only the first time.</li>
+        </ol>
+        <a class="dl" href="https://github.com/DrewbaccaCode/party-games-builds/releases/latest/download/PartyGames-Windows.zip">DOWNLOAD FOR WINDOWS<span data-size="PartyGames-Windows.zip"></span></a>
+      </div>
+      <div class="sys paper" data-os="mac">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8C7 7.3 5.6 8.2 4.8 9.6c-1.6 2.8-.4 6.9 1.2 9.2.8 1.1 1.7 2.3 2.9 2.3 1.2-.1 1.6-.8 3-.8s1.8.8 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.6-1-2.6-3.5zM14.1 5.6c.6-.8 1.1-1.8.9-2.9-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-1 2.8 1.1.1 2.1-.5 2.8-1.3z"/></svg>macOS</h3>
+        <ol>
+          <li>Unzip <b>PartyGames-macOS.zip</b> (double-click it).</li>
+          <li>Open <b>Party Games</b>. Drag it into Applications first if you like.</li>
+          <li id="mac-note">It's signed and checked by Apple, so it opens like any app. Works on Apple silicon and Intel Macs.</li>
+        </ol>
+        <a class="dl" href="https://github.com/DrewbaccaCode/party-games-builds/releases/latest/download/PartyGames-macOS.zip">DOWNLOAD FOR MACOS<span data-size="PartyGames-macOS.zip"></span></a>
+      </div>
+      <div class="sys paper" data-os="linux">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2c-2.2 0-3.4 1.9-3.4 4.3 0 1.4.3 2.3-.5 3.6C6.8 12 5 14 5 16.7c0 1 .4 1.6 1 2-.4.8-1 1.4-.6 2.2.5.9 2.2.6 3.4 1.1h6.4c1.2-.5 2.9-.2 3.4-1.1.4-.8-.2-1.4-.6-2.2.6-.4 1-1 1-2 0-2.7-1.8-4.7-3.1-6.8-.8-1.3-.5-2.2-.5-3.6C15.4 3.9 14.2 2 12 2zm-1.7 4.2c.5 0 .8.6.8 1.2s-.3 1.1-.8 1.1-.8-.5-.8-1.1.3-1.2.8-1.2zm3.4 0c.5 0 .8.6.8 1.2s-.3 1.1-.8 1.1-.8-.5-.8-1.1.3-1.2.8-1.2zM12 9.2c.9 0 2.2.6 2.2 1.1S12.9 11.5 12 11.5s-2.2-.7-2.2-1.2.9-1.1 2.2-1.1z"/></svg>Linux</h3>
+        <ol>
+          <li>Unzip <b>PartyGames-Linux.zip</b>.</li>
+          <li>Run <b>party_games.x86_64</b>. If it won't start, make it runnable first: <code>chmod +x party_games.x86_64</code>.</li>
+          <li>For 64-bit PCs (x86_64), on any recent desktop distribution.</li>
+        </ol>
+        <a class="dl" href="https://github.com/DrewbaccaCode/party-games-builds/releases/latest/download/PartyGames-Linux.zip">DOWNLOAD FOR LINUX<span data-size="PartyGames-Linux.zip"></span></a>
+      </div>
+    </div>
+
+    <div class="launcher timber rivets" id="launcher">
+      <div>
+        <h3>The launcher</h3>
+        <p>Install it once and it always has the newest version: one click to update, one to play. Your settings stay put between versions.</p>
+      </div>
+      <div class="links">
+        <a id="launcher-windows" href="https://github.com/DrewbaccaCode/party-games-builds/releases/download/launcher-v0.1.0/PartyGamesLauncher-Windows.zip">WINDOWS</a>
+        <a id="launcher-mac" href="https://github.com/DrewbaccaCode/party-games-builds/releases/download/launcher-v0.1.0/PartyGamesLauncher-macOS.zip">MACOS</a>
+        <a id="launcher-linux" href="https://github.com/DrewbaccaCode/party-games-builds/releases/download/launcher-v0.1.0/PartyGamesLauncher-Linux.zip">LINUX</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="controls">
+  <div class="wrap">
+    <h2>Controls<small>A keyboard and mouse, or any controller.</small></h2>
+    <div class="paper controls-box">
+      <table class="controls">
+        <thead><tr><th></th><th>Keyboard</th><th>Controller</th></tr></thead>
+        <tbody>
+          <tr><td>Move</td><td><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> or arrows</td><td>Left stick</td></tr>
+          <tr><td>Jump</td><td><span class="key">SPACE</span></td><td>A</td></tr>
+          <tr><td>Attack</td><td>Left click (hold to draw a bow)</td><td>Right trigger</td></tr>
+          <tr><td>Use</td><td><span class="key">E</span></td><td>X</td></tr>
+          <tr><td>Vote</td><td><span class="key">V</span></td><td>Y</td></tr>
+          <tr><td>Emote</td><td>Hold <span class="key">T</span></td><td>Hold LB</td></tr>
+          <tr><td>Menu</td><td><span class="key">ESC</span></td><td>Start</td></tr>
+        </tbody>
+      </table>
+      <p>Everything can be changed under <b>Esc &gt; Controls</b>. Each game's own moves are on the card before it starts.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="pennants" aria-hidden="true">
+      <span style="background:var(--tnt)"></span><span style="background:var(--quiver)"></span><span style="background:var(--zombies)"></span><span style="background:var(--course)"></span><span style="background:var(--party)"></span>
+    </div>
+    <p>Made for friends. <a href="https://github.com/DrewbaccaCode/party-games-builds/releases">Every version</a> &middot; <a href="https://github.com/DrewbaccaCode/party-games-builds#readme">The guide</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var REPO = "DrewbaccaCode/party-games-builds";
+  var LATEST = "https://github.com/" + REPO + "/releases/latest/download/";
+  var FILES = { windows: "PartyGames-Windows.zip", mac: "PartyGames-macOS.zip", linux: "PartyGames-Linux.zip" };
+  var NAMES = { windows: "Windows", mac: "macOS", linux: "Linux" };
+
+  function detect() {
+    var ua = navigator.userAgent || "";
+    var platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+    var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (mobile) return { os: null, mobile: true };
+    if (/Win/i.test(platform) || /Windows/i.test(ua)) return { os: "windows" };
+    if (/Mac/i.test(platform) || /Mac OS X/i.test(ua)) return { os: "mac" };
+    if (/Linux|X11|CrOS/i.test(platform + ua)) return { os: "linux" };
+    return { os: null };
+  }
+
+  function mb(bytes) { return Math.round(bytes / 1048576) + " MB"; }
+
+  var who = detect();
+  var main = document.getElementById("dl-main");
+  var mainText = document.getElementById("dl-main-text");
+  var meta = document.getElementById("dl-meta");
+  var others = document.getElementById("dl-others");
+  if (who.mobile) {
+    document.getElementById("phone-note").style.display = "block";
+    main.href = "#get";
+    mainText.textContent = "See the downloads";
+    others.style.display = "none";
+  } else if (who.os) {
+    main.href = LATEST + FILES[who.os];
+    mainText.textContent = "Download for " + NAMES[who.os];
+    var mine = document.querySelector('.sys[data-os="' + who.os + '"]');
+    if (mine) mine.classList.add("mine");
+    var rest = Object.keys(NAMES).filter(function (k) { return k !== who.os; });
+    others.innerHTML = 'Also for <a href="' + LATEST + FILES[rest[0]] + '">' + NAMES[rest[0]] + '</a> and <a href="' +
+      LATEST + FILES[rest[1]] + '">' + NAMES[rest[1]] + '</a>, or use the <a href="#launcher">launcher</a>, which keeps it up to date.';
+  } else {
+    main.href = "#get";
+    mainText.textContent = "Choose your system";
+  }
+
+  // The newest version's number and sizes, and whether its Mac app is signed. (The links work without this.)
+  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=20")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (releases) {
+      var game = releases.find(function (r) { return !r.draft && !r.prerelease && /^build-/.test(r.tag_name); });
+      var launcher = releases.find(function (r) { return !r.draft && /^launcher-v/.test(r.tag_name); });
+      if (game) {
+        var sizes = {};
+        game.assets.forEach(function (a) { sizes[a.name] = a.size; });
+        var when = new Date(game.published_at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+        var size = who.os && sizes[FILES[who.os]] ? " · " + mb(sizes[FILES[who.os]]) : "";
+        meta.textContent = game.name + size + " · " + when;
+        document.querySelectorAll("[data-size]").forEach(function (el) {
+          var s = sizes[el.getAttribute("data-size")];
+          if (s) el.textContent = " (" + mb(s) + ")";
+        });
+        if (!/signed and notarized/i.test(game.body || "")) {
+          document.getElementById("mac-note").innerHTML = 'The first time, macOS may say it can’t check the app: open <b>System Settings &gt; Privacy &amp; Security</b> and click <b>Open Anyway</b>. Works on Apple silicon and Intel Macs.';
+        }
+      }
+      if (launcher) {
+        ["Windows", "macOS", "Linux"].forEach(function (sys) {
+          var asset = launcher.assets.find(function (a) { return a.name === "PartyGamesLauncher-" + sys + ".zip"; });
+          var el = document.getElementById("launcher-" + (sys === "macOS" ? "mac" : sys.toLowerCase()));
+          if (asset && el) el.href = asset.browser_download_url;
+        });
+      }
+    })
+    .catch(function () { /* GitHub's API is busy or blocked: the plain links still work */ });
+})();
+</script>
+</body>
+</html>

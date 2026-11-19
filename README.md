@@ -3,6 +3,8 @@
 Top-down party minigames for you and your friends: the TNT Games (TNT Run, Bow Spleef, TNT Tag, TNT Wizards), The
 Quiver, Obstacles, Party Games and Zombies. Up to eight players, by room code.
 
+**The download page: [drewbaccacode.github.io/party-games-builds](https://drewbaccacode.github.io/party-games-builds/)**
+
 ## The easy way: the launcher
 
 Get **Party Games Launcher** from the [launcher release](https://github.com/DrewbaccaCode/party-games-builds/releases?q=launcher&expanded=true)
@@ -16,8 +18,9 @@ between versions.
   extract the ZIP and run `Party Games.exe`. If Windows says "Windows protected your PC", click **More info**, then
   **Run anyway**. (It isn't signed with a paid certificate; you only need to do this once.)
 - **[macOS](https://github.com/DrewbaccaCode/party-games-builds/releases/latest/download/PartyGames-macOS.zip)**
-  (Intel and Apple silicon): extract it, then the first time, try to open `Party Games.app` once and choose **Open
-  Anyway** under System Settings > Privacy & Security (or right-click the app and choose **Open**).
+  (Intel and Apple silicon): extract it and open `Party Games.app`. It's signed and notarized by Apple, so it opens
+  like any app. (Older versions aren't: for those, try to open it once, then choose **Open Anyway** under System
+  Settings > Privacy & Security.)
 - **[Linux](https://github.com/DrewbaccaCode/party-games-builds/releases/latest/download/PartyGames-Linux.zip)**:
   extract it and run `party_games.x86_64`.
 
@@ -76,5 +79,7 @@ ball about, ring the bell from the pink pad, or find someone for the seesaw. Hol
 
 ## How these are made
 
-Each new version of the game is built and checked automatically (every script parses, and three bots play a match
-over a real relay) before it's published here. This repository holds only the build instructions and the downloads.
+Each new version of the game is built and checked automatically before it's published here: every script parses,
+three bots play a match over a real relay, the Mac app is signed and notarized, and then the Windows, macOS and Linux
+downloads themselves each play a match on their own system (`tests/export_smoke.sh`). This repository holds only the
+build instructions, the download page (`docs/`) and the downloads.
